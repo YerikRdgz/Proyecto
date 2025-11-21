@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { User, Calendar, Clock, DollarSign, LogOut, Users, Briefcase, CheckCircle, Plus, FileText, Trash2, Edit, Save, X, History, AlertTriangle, HeartPulse, CheckSquare } from 'lucide-react';
+import { User, Calendar, Clock, DollarSign, LogOut, Users, Briefcase, CheckCircle, Plus, FileText, Trash2, Edit, Save, X, History, AlertTriangle, HeartPulse, CheckSquare, Filter } from 'lucide-react';
 
 // --- DATOS DE EJEMPLO ---
 const initialUsers = [
@@ -9,7 +9,7 @@ const initialUsers = [
   },
   { 
     id: 2, name: 'Natalie Lazaro', email: 'bombero@nexo.com', password: '123', role: 'bombero', rate: 100,
-    birthDate: '1995-05-15', curp: 'LAZA950515HDFXXX02', bloodType: 'A+', allergies: 'Penicilina' 
+    birthDate: '1995-05-15', curp: 'LAZA950515HDFXXX02', bloodType: 'O+', allergies: 'Suavitel' 
   },
 ];
 
@@ -20,10 +20,18 @@ const initialEvents = [
   { 
     id: 102, name: 'Guardia Nocturna', date: '2025-12-01', startTime: '20:00', endTime: '06:00', location: 'Estación Norte', type: 'Operativo', quota: 2, deadline: '2025-11-30' 
   },
+  { 
+    id: 103, name: 'Evento Pasado Octubre', date: '2025-10-15', startTime: '09:00', endTime: '14:00', location: 'Plaza Sur', type: 'Social', quota: 5, deadline: '2025-10-14' 
+  },
 ];
 
 const initialAssignments = [
-  { eventId: 101, userId: 2 }
+  { eventId: 101, userId: 2 },
+  { eventId: 103, userId: 2 } 
+];
+
+const initialShifts = [
+  { id: 999, userId: 2, eventId: 103, startTime: '2025-10-15T09:00:00.000Z', endTime: '2025-10-15T14:00:00.000Z', historicRate: 100, overtime: 0 }
 ];
 
 // --- COMPONENTE PRINCIPAL ---
@@ -32,46 +40,49 @@ export default function App() {
   const [users, setUsers] = useState(initialUsers);
   const [events, setEvents] = useState(initialEvents);
   const [assignments, setAssignments] = useState(initialAssignments);
-  // SHIFTS AHORA GUARDA: historicRate (para no afectar nómina pasada) y overtime (horas extra)
-  const [shifts, setShifts] = useState([]); 
+  const [shifts, setShifts] = useState(initialShifts); 
   
   const [adminView, setAdminView] = useState('events'); 
 
   // --- FUNCIÓN DE CIERRE AUTOMÁTICO DE TURNOS ---
   useEffect(() => {
-    const interval = setInterval(() => {
+    const checkAutoClose = () => {
       const now = new Date();
-      // Revisar turnos activos
-      const updatedShifts = shifts.map(shift => {
-        if (!shift.endTime) {
-          const event = events.find(e => e.id === shift.eventId);
-          if (event) {
-            // Construir fecha fin del evento
-            const eventEnd = new Date(`${event.date}T${event.endTime}`);
-            // Si ya pasó la hora fin del evento, cerramos el turno automáticamente
-            if (now > eventEnd) {
-              // Buscamos la tarifa del usuario para congelarla
-              const worker = users.find(u => u.id === shift.userId);
-              return { 
-                ...shift, 
-                endTime: new Date().toISOString(), 
-                autoClosed: true, // Marca interna
-                historicRate: worker ? worker.rate : 0 // SNAPSHOT DE TARIFA
-              };
+      
+      setShifts(currentShifts => {
+        let hasChanges = false;
+        const updatedShifts = currentShifts.map(shift => {
+          if (!shift.endTime) {
+            const event = events.find(e => e.id === shift.eventId);
+            if (event) {
+              let eventEnd = new Date(`${event.date}T${event.endTime}`);
+              const eventStart = new Date(`${event.date}T${event.startTime}`);
+              if (eventEnd < eventStart) {
+                 eventEnd.setDate(eventEnd.getDate() + 1);
+              }
+
+              if (now > eventEnd) {
+                hasChanges = true;
+                const worker = users.find(u => u.id === shift.userId);
+                return { 
+                  ...shift, 
+                  endTime: new Date().toISOString(), 
+                  autoClosed: true, 
+                  historicRate: worker ? worker.rate : 0 
+                };
+              }
             }
           }
-        }
-        return shift;
+          return shift;
+        });
+        return hasChanges ? updatedShifts : currentShifts;
       });
-      
-      // Solo actualizamos si hubo cambios para evitar re-renders infinitos
-      if (JSON.stringify(updatedShifts) !== JSON.stringify(shifts)) {
-        setShifts(updatedShifts);
-      }
-    }, 60000); // Revisar cada minuto (60000 ms)
+    };
 
+    checkAutoClose();
+    const interval = setInterval(checkAutoClose, 30000);
     return () => clearInterval(interval);
-  }, [shifts, events, users]);
+  }, [events, users]); 
 
   const handleLogin = (email, password) => {
     const foundUser = users.find(u => u.email === email && u.password === password);
@@ -108,13 +119,13 @@ export default function App() {
     return (
       <FirefighterDashboard 
         user={user} 
-        onLogout={handleLogout}
+        onLogout={handleLogout} 
         events={events}
         assignments={assignments}
         setAssignments={setAssignments}
         shifts={shifts}
         setShifts={setShifts}
-        currentUserData={user} // Pasamos datos actuales para obtener tarifa al momento
+        currentUserData={user}
       />
     );
   }
@@ -149,7 +160,6 @@ function LoginScreen({ onLogin }) {
             <label className="block text-sm font-medium text-slate-700">Contraseña</label>
             <input type="password" className="mt-1 w-full p-2 border rounded bg-slate-50" value={password} onChange={e => setPassword(e.target.value)} />
           </div>
-          {/* Aseguramos type="submit" */}
           <button type="submit" className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded transition">Iniciar Sesión</button>
         </form>
         <div className="mt-6 text-xs text-center text-slate-400"><p>Admin: admin@nexo.com / 123</p><p>Bombero: bombero@nexo.com / 123</p></div>
@@ -162,9 +172,8 @@ function LoginScreen({ onLogin }) {
 function AdminDashboard({ user, onLogout, users, setUsers, events, setEvents, assignments, setAssignments, shifts, view, setView }) {
   const [editingUserId, setEditingUserId] = useState(null);
   const [tempRate, setTempRate] = useState(0);
-  
-  // Estado para edición de eventos
   const [editingEvent, setEditingEvent] = useState(null);
+  const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().substring(0, 7));
 
   // --- GESTIÓN DE USUARIOS ---
   const handleDeleteUser = (id) => {
@@ -200,19 +209,15 @@ function AdminDashboard({ user, onLogout, users, setUsers, events, setEvents, as
     e.target.reset();
   };
 
-  // --- GESTIÓN DE EVENTOS (CREAR Y EDITAR) ---
+  // --- GESTIÓN DE EVENTOS ---
   const handleEventSubmit = (e) => {
     e.preventDefault();
     const formData = new FormData(e.target);
-    
     const eventDate = formData.get('eventDate');
     const startTime = formData.get('startTime');
-    
-    // VALIDACIÓN: NO FECHAS PASADAS
     const eventDateTime = new Date(`${eventDate}T${startTime}`);
     const now = new Date();
     
-    // Permitimos editar eventos pasados solo para corregir datos, pero no crear nuevos en el pasado
     if (!editingEvent && eventDateTime < now) {
       alert("Error: No puedes crear eventos con fecha u hora en el pasado.");
       return;
@@ -230,53 +235,33 @@ function AdminDashboard({ user, onLogout, users, setUsers, events, setEvents, as
     };
 
     if (editingEvent) {
-      // MODIFICAR EVENTO EXISTENTE
       setEvents(events.map(ev => ev.id === editingEvent.id ? { ...ev, ...eventData } : ev));
       alert("Evento modificado correctamente.");
       setEditingEvent(null);
     } else {
-      // CREAR NUEVO
       setEvents([...events, { id: Date.now(), ...eventData }]);
       alert("Evento creado.");
     }
     e.target.reset();
   };
 
-  const startEditingEvent = (event) => {
-    setEditingEvent(event);
-    // Scroll hacia arriba para ver el formulario
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  const cancelEditEvent = () => {
-    setEditingEvent(null);
-  }
+  const startEditingEvent = (event) => { setEditingEvent(event); window.scrollTo({ top: 0, behavior: 'smooth' }); };
+  const cancelEditEvent = () => { setEditingEvent(null); }
 
   // --- CÁLCULO DE NÓMINA ---
   const calculatePayroll = () => {
-    // Solo procesamos turnos completados
     const completedShifts = shifts.filter(s => s.endTime);
-    
     return completedShifts.map(shift => {
       const worker = users.find(u => u.id === shift.userId);
       const event = events.find(e => e.id === shift.eventId);
-      
       if (!worker || !event) return null; 
 
-      // 1. OBTENER LA TARIFA CORRECTA (SNAPSHOT)
-      // Si el turno tiene 'historicRate', usamos esa. Si no (es viejo), usamos la actual del worker.
       const rateToUse = shift.historicRate !== undefined ? shift.historicRate : worker.rate;
-
-      // 2. CÁLCULO BASE (5 Horas Fijas)
       const basePay = 5 * rateToUse;
 
-      // 3. CÁLCULO EXTRAS (Con redondeo > 30min)
       let overtimePay = 0;
       let roundedOvertime = 0;
-
       if (shift.overtime) {
-        // Regla: "Las horas se cuentan completas después de 30min"
-        // Interpretación estándar: Redondeo matemático (1.5 -> 2, 1.4 -> 1)
         roundedOvertime = Math.round(shift.overtime);
         overtimePay = roundedOvertime * rateToUse;
       }
@@ -301,8 +286,14 @@ function AdminDashboard({ user, onLogout, users, setUsers, events, setEvents, as
 
   const payrollData = calculatePayroll();
 
-  // Agrupaciones
-  const summaryByEmployee = Object.values(payrollData.reduce((acc, curr) => {
+  const availableMonths = [...new Set(payrollData.map(p => p.monthKey))].sort().reverse();
+  if (availableMonths.length === 0 && !availableMonths.includes(new Date().toISOString().substring(0, 7))) {
+    availableMonths.push(new Date().toISOString().substring(0, 7));
+  }
+
+  const filteredDataForSummary = payrollData.filter(item => item.monthKey === selectedMonth);
+
+  const summaryByEmployee = Object.values(filteredDataForSummary.reduce((acc, curr) => {
     if (!acc[curr.workerId]) acc[curr.workerId] = { name: curr.workerName, total: 0, shifts: 0 };
     acc[curr.workerId].total += curr.totalPay;
     acc[curr.workerId].shifts += 1;
@@ -384,7 +375,7 @@ function AdminDashboard({ user, onLogout, users, setUsers, events, setEvents, as
             </div>
           )}
 
-          {/* VISTA USUARIOS */}
+          {/* VISTA USUARIOS (ACTUALIZADA CON DATOS MÉDICOS) */}
           {view === 'users' && (
             <div className="bg-white p-6 rounded-lg shadow">
               <h2 className="text-lg font-bold mb-4 border-b pb-2">Registrar Personal</h2>
@@ -393,27 +384,48 @@ function AdminDashboard({ user, onLogout, users, setUsers, events, setEvents, as
                 <input name="email" type="email" required placeholder="Correo Electrónico" className="border p-2 rounded" />
                 <input name="curp" required placeholder="CURP" className="border p-2 rounded uppercase" maxLength={18} />
                 <input name="birthDate" type="date" required className="border p-2 rounded" />
-                <select name="bloodType" className="border p-2 rounded"><option value="">Tipo de Sangre</option><option value="A+">A+</option><option value="O+">O+</option></select>
+                <select name="bloodType" className="border p-2 rounded"><option value="">Tipo de Sangre</option><option value="A+">A+</option><option value="A-">A-</option><option value="O+">O+</option><option value="O-">O-</option></select>
                 <input name="allergies" placeholder="Alergias" className="border p-2 rounded" />
                 <select name="role" className="border p-2 rounded"><option value="bombero">Bombero</option><option value="admin">Administrador</option></select>
                 <input name="rate" type="number" placeholder="Tarifa ($/hr)" className="border p-2 rounded" />
                 <button type="submit" className="md:col-span-2 bg-slate-800 text-white p-2 rounded">Registrar</button>
               </form>
-              <h3 className="font-bold mb-2">Directorio</h3>
+              <h3 className="font-bold mb-2">Directorio Completo</h3>
               <table className="w-full text-sm text-left">
-                <thead className="bg-slate-50"><tr><th className="p-2">Nombre</th><th className="p-2">Rol</th><th className="p-2">Tarifa</th><th className="p-2 text-center">Acciones</th></tr></thead>
+                <thead className="bg-slate-50">
+                  <tr>
+                    <th className="p-2">Nombre / Email</th>
+                    <th className="p-2">CURP / Médica</th> {/* NUEVA COLUMNA */}
+                    <th className="p-2">Rol</th>
+                    <th className="p-2">Tarifa</th>
+                    <th className="p-2 text-center">Acciones</th>
+                  </tr>
+                </thead>
                 <tbody>
                   {users.map(u => (
                     <tr key={u.id} className="border-b">
-                      <td className="p-2">{u.name}</td>
+                      <td className="p-2">
+                        <div className="font-medium text-slate-800">{u.name}</div>
+                        <div className="text-xs text-slate-400">{u.email}</div>
+                      </td>
+                      
+                      {/* CÉLULA DE INFORMACIÓN DETALLADA */}
+                      <td className="p-2">
+                        <div className="font-mono text-xs text-slate-600 mb-1">{u.curp || 'SIN CURP'}</div>
+                        <div className="flex items-center gap-2">
+                          {u.bloodType && <span className="bg-red-100 text-red-700 px-1 rounded text-[10px] font-bold border border-red-200">{u.bloodType}</span>}
+                          <span className="text-xs text-slate-500 truncate max-w-[120px]" title={u.allergies}>{u.allergies || 'Sin alergias'}</span>
+                        </div>
+                      </td>
+
                       <td className="p-2 capitalize">{u.role}</td>
                       <td className="p-2">
                         {editingUserId === u.id ? (
-                          <div className="flex gap-1"><input type="number" value={tempRate} onChange={(e)=>setTempRate(e.target.value)} className="w-20 border rounded"/><button onClick={()=>saveRate(u.id)} className="text-green-600"><Save size={16}/></button></div>
-                        ) : <span>${u.rate}</span>}
+                          <div className="flex gap-1"><input type="number" value={tempRate} onChange={(e)=>setTempRate(e.target.value)} className="w-20 border rounded text-xs p-1"/><button onClick={()=>saveRate(u.id)} className="text-green-600"><Save size={16}/></button></div>
+                        ) : <span className="font-medium text-slate-700">${u.rate}</span>}
                       </td>
-                      <td className="p-2 flex justify-center gap-2">
-                        {u.role !== 'admin' && <><button onClick={()=>startEditingUser(u)} className="text-blue-600"><Edit size={16}/></button><button onClick={()=>handleDeleteUser(u.id)} className="text-red-600"><Trash2 size={16}/></button></>}
+                      <td className="p-2 flex justify-center gap-2 items-center">
+                        {u.role !== 'admin' && <><button onClick={()=>startEditingUser(u)} className="text-blue-600 hover:bg-blue-50 p-1 rounded"><Edit size={16}/></button><button onClick={()=>handleDeleteUser(u.id)} className="text-red-600 hover:bg-red-50 p-1 rounded"><Trash2 size={16}/></button></>}
                       </td>
                     </tr>
                   ))}
@@ -426,11 +438,20 @@ function AdminDashboard({ user, onLogout, users, setUsers, events, setEvents, as
           {view === 'payroll' && (
             <div className="space-y-6">
               <div className="bg-white p-6 rounded-lg shadow border-l-4 border-green-500">
-                <h2 className="text-lg font-bold mb-4 flex items-center gap-2"><DollarSign className="text-green-600" /> Resumen Total de Pagos</h2>
+                <div className="flex justify-between items-center mb-4">
+                  <h2 className="text-lg font-bold flex items-center gap-2"><DollarSign className="text-green-600" /> Resumen de Pagos</h2>
+                  <div className="flex items-center gap-2">
+                    <Filter size={16} className="text-slate-500"/>
+                    <select value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)} className="border rounded p-2 text-sm bg-slate-50">
+                      {availableMonths.map(m => (<option key={m} value={m}>{m}</option>))}
+                    </select>
+                  </div>
+                </div>
+                <p className="text-sm text-slate-500 mb-4">Mostrando totales para el periodo: <span className="font-bold text-slate-800">{selectedMonth}</span></p>
                 <table className="w-full text-sm">
-                  <thead className="bg-slate-100"><tr><th className="p-3 text-left">Empleado</th><th className="p-3 text-center">Eventos</th><th className="p-3 text-right">Total a Pagar</th></tr></thead>
+                  <thead className="bg-slate-100"><tr><th className="p-3 text-left">Empleado</th><th className="p-3 text-center">Eventos (En este mes)</th><th className="p-3 text-right">Total a Pagar</th></tr></thead>
                   <tbody>
-                    {summaryByEmployee.length === 0 && <tr><td colSpan="3" className="p-3 text-center text-slate-400">Sin datos</td></tr>}
+                    {summaryByEmployee.length === 0 && <tr><td colSpan="3" className="p-3 text-center text-slate-400">No hay pagos registrados en este mes.</td></tr>}
                     {summaryByEmployee.map((sum, idx) => (
                       <tr key={idx} className="border-b">
                         <td className="p-3 font-bold text-slate-700">{sum.name}</td>
@@ -441,10 +462,11 @@ function AdminDashboard({ user, onLogout, users, setUsers, events, setEvents, as
                   </tbody>
                 </table>
               </div>
+
               <div className="bg-white p-6 rounded-lg shadow">
-                <h2 className="text-lg font-bold mb-4 flex items-center gap-2"><History className="text-slate-600" /> Archivo de Nómina Mensual</h2>
+                <h2 className="text-lg font-bold mb-4 flex items-center gap-2"><History className="text-slate-600" /> Archivo Histórico Completo</h2>
                 {sortedMonths.map(month => (
-                  <div key={month} className="mb-6 border rounded-lg overflow-hidden">
+                  <div key={month} className={`mb-6 border rounded-lg overflow-hidden ${month === selectedMonth ? 'ring-2 ring-green-200' : ''}`}>
                     <div className="bg-slate-800 text-white p-3 font-bold">Periodo: {month}</div>
                     <table className="w-full text-sm">
                       <thead className="bg-slate-50 text-slate-500"><tr><th className="p-3 text-left">Bombero</th><th className="p-3">Evento</th><th className="p-3 text-right">Fecha</th><th className="p-3 text-right">Extras</th><th className="p-3 text-right">Total</th></tr></thead>
@@ -474,7 +496,6 @@ function AdminDashboard({ user, onLogout, users, setUsers, events, setEvents, as
 // --- PANEL DE BOMBERO ---
 function FirefighterDashboard({ user, onLogout, events, assignments, setAssignments, shifts, setShifts, currentUserData }) {
   const [tab, setTab] = useState('my-events');
-  // Estado local para manejar input de horas extra por evento
   const [overtimeInputs, setOvertimeInputs] = useState({});
   const [showOvertimeFor, setShowOvertimeFor] = useState({});
 
@@ -511,32 +532,22 @@ function FirefighterDashboard({ user, onLogout, events, assignments, setAssignme
   };
 
   const handleClockIn = (eventId) => {
-    // Al iniciar turno, NO guardamos la tarifa aún. Se guarda al finalizar.
     const newShift = { id: Date.now(), userId: user.id, eventId, startTime: new Date().toISOString(), endTime: null, overtime: 0 };
     setShifts([...shifts, newShift]);
   };
 
   const handleClockOut = (eventId) => {
-    // Al finalizar manual, guardamos snapshot de tarifa
     const updated = shifts.map(s => s.userId === user.id && s.eventId === eventId && !s.endTime ? 
       { ...s, endTime: new Date().toISOString(), historicRate: currentUserData.rate } : s);
     setShifts(updated);
   };
 
-  // Guardar Horas Extra
   const handleSaveOvertime = (shiftId) => {
     const val = parseFloat(overtimeInputs[shiftId]);
     if (isNaN(val) || val < 0) return alert("Ingresa un número válido de horas.");
-
-    const updated = shifts.map(s => {
-      if (s.id === shiftId) {
-        return { ...s, overtime: val };
-      }
-      return s;
-    });
+    const updated = shifts.map(s => s.id === shiftId ? { ...s, overtime: val } : s);
     setShifts(updated);
     alert("Horas extra registradas.");
-    // Ocultar casilla
     setShowOvertimeFor({ ...showOvertimeFor, [shiftId]: false });
   };
 
@@ -562,6 +573,7 @@ function FirefighterDashboard({ user, onLogout, events, assignments, setAssignme
             {myEvents.map(event => {
               const activeShift = getActiveShift(event.id);
               const completedShift = getCompletedShift(event.id); 
+              const wasAutoClosed = completedShift?.autoClosed;
 
               return (
                 <div key={event.id} className="bg-white rounded-lg shadow-md p-6 border-l-4 border-red-600">
@@ -570,40 +582,15 @@ function FirefighterDashboard({ user, onLogout, events, assignments, setAssignme
                     <div>
                       {completedShift ? (
                         <div className="text-right">
-                          <button disabled className="bg-slate-300 text-slate-500 px-4 py-2 rounded font-bold flex items-center gap-2 cursor-not-allowed mb-2"><CheckCircle size={18}/> COMPLETADO</button>
-                          {/* --- CASILLA HORAS EXTRA --- */}
+                          <button disabled className="bg-slate-300 text-slate-500 px-4 py-2 rounded font-bold flex items-center gap-2 cursor-not-allowed mb-2">
+                            <CheckCircle size={18}/> {wasAutoClosed ? 'CIERRE AUTO' : 'COMPLETADO'}
+                          </button>
                           <div className="mt-2 border-t pt-2">
-                            <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
-                              <input 
-                                type="checkbox" 
-                                checked={showOvertimeFor[completedShift.id] || false}
-                                onChange={(e) => setShowOvertimeFor({...showOvertimeFor, [completedShift.id]: e.target.checked})}
-                                className="rounded text-red-600 focus:ring-red-500"
-                              />
-                              <span className="font-medium text-slate-700">¿Horas Extra?</span>
-                            </label>
-                            
+                            <label className="flex items-center gap-2 text-sm cursor-pointer select-none"><input type="checkbox" checked={showOvertimeFor[completedShift.id] || false} onChange={(e) => setShowOvertimeFor({...showOvertimeFor, [completedShift.id]: e.target.checked})} className="rounded text-red-600 focus:ring-red-500" /><span className="font-medium text-slate-700">¿Horas Extra?</span></label>
                             {showOvertimeFor[completedShift.id] && (
-                              <div className="mt-2 flex items-center gap-2 animate-in fade-in slide-in-from-top-2">
-                                <input 
-                                  type="number" 
-                                  step="0.1" 
-                                  placeholder="Hrs (ej 1.5)" 
-                                  className="w-24 border p-1 rounded text-sm"
-                                  value={overtimeInputs[completedShift.id] || ''}
-                                  onChange={(e) => setOvertimeInputs({...overtimeInputs, [completedShift.id]: e.target.value})}
-                                />
-                                <button 
-                                  onClick={() => handleSaveOvertime(completedShift.id)}
-                                  className="bg-slate-800 text-white px-2 py-1 rounded text-xs"
-                                >
-                                  Guardar
-                                </button>
-                              </div>
+                              <div className="mt-2 flex items-center gap-2 animate-in fade-in slide-in-from-top-2"><input type="number" step="0.1" placeholder="Hrs" className="w-24 border p-1 rounded text-sm" value={overtimeInputs[completedShift.id] || ''} onChange={(e) => setOvertimeInputs({...overtimeInputs, [completedShift.id]: e.target.value})} /><button onClick={() => handleSaveOvertime(completedShift.id)} className="bg-slate-800 text-white px-2 py-1 rounded text-xs">Guardar</button></div>
                             )}
-                            {completedShift.overtime > 0 && (
-                              <p className="text-xs text-green-600 mt-1 font-bold">Registrado: {completedShift.overtime} hrs extra</p>
-                            )}
+                            {completedShift.overtime > 0 && <p className="text-xs text-green-600 mt-1 font-bold">Registrado: {completedShift.overtime} hrs extra</p>}
                           </div>
                         </div>
                       ) : activeShift ? (
@@ -636,7 +623,7 @@ function FirefighterDashboard({ user, onLogout, events, assignments, setAssignme
               <div key={month} className="bg-white rounded-lg shadow overflow-hidden">
                 <div className="bg-slate-800 text-white p-4 flex justify-between items-center"><span className="font-bold text-lg capitalize">Periodo: {month}</span><div className="bg-green-600 px-3 py-1 rounded text-sm font-bold">Total Mes: ${historyByMonth[month].total.toFixed(2)}</div></div>
                 <table className="w-full text-sm text-left">
-                  <thead className="bg-slate-50 text-slate-500"><tr><th className="p-4">Evento</th><th className="p-4">Fecha</th><th className="p-4 text-right">Pago (5hrs + Extra)</th></tr></thead>
+                  <thead className="bg-slate-50 text-slate-500"><tr><th className="p-4">Evento</th><th className="p-4">Fecha</th><th className="p-4 text-right">Pago</th></tr></thead>
                   <tbody>
                     {historyByMonth[month].shifts.map(h => (
                       <tr key={h.id} className="border-b hover:bg-slate-50">
@@ -645,6 +632,7 @@ function FirefighterDashboard({ user, onLogout, events, assignments, setAssignme
                         <td className="p-4 text-right font-bold text-green-700">
                           ${h.pay.toFixed(2)}
                           {h.extraHours > 0 && <span className="block text-xs text-slate-400 font-normal">({h.extraHours}h extra incluidas)</span>}
+                          {h.autoClosed && <span className="block text-xs text-red-400 font-normal">(Cierre Auto)</span>}
                         </td>
                       </tr>
                     ))}
