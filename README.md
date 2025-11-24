@@ -1,5 +1,5 @@
-# 🚒 Proyecto NEXO: Plataforma de Gestion y Control de Personal
-Este documento sirve como la documentación técnica oficial del Proyecto Nexo, detallando el proceso de diseño, desarrollo, implementación y análisis de resultados.
+# 🚒 Proyecto NEXAFireOps: Plataforma de Gestion y Control de Personal
+Este documento sirve como la documentación técnica oficial del Proyecto NEXAFireOps, detallando el proceso de diseño, desarrollo, implementación y análisis de resultados.
 
 ## 1. Contexto y Motivación
 **¿Por qué este proyecto?**
