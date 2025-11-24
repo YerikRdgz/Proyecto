@@ -1,10 +1,6 @@
 /**
- * 🚒 PROYECTO NEXO - VERSIÓN 9 (CORRECCIÓN PANTALLA BLANCA)
+ * 🚒 PROYECTO NEXAFireOps
  * ---------------------------------------------------------
- * - Agregada pantalla de error si el rol no coincide.
- * - Normalización de roles (mayúsculas/minúsculas).
- * - Admin: Edición completa.
- * - Bombero: Perfil y Edición.
  */
 
 import React, { useState, useEffect } from 'react';
@@ -111,8 +107,8 @@ export default function App() {
 
   const seedDatabase = async () => {
     setLoading(true);
-    await dbAdd(COLS.USERS, { name: 'Admin General', email: 'admin@nexo.com', password: '123', role: 'admin', rate: 0, birthDate: '1980-01-01', curp: 'ADMIN01', bloodType: 'O+', allergies: 'Ninguna' });
-    await dbAdd(COLS.USERS, { name: 'Natalie Lazaro', email: 'bombero@nexo.com', password: '123', role: 'bombero', rate: 100, birthDate: '1995-05-15', curp: 'LAZA95', bloodType: 'A+', allergies: 'Penicilina' });
+    await dbAdd(COLS.USERS, { name: 'Admin General', email: 'admin@nexa.com', password: '123', role: 'admin', rate: 0, birthDate: '1980-01-01', curp: 'ADMIN01', bloodType: 'O+', allergies: 'Ninguna' });
+    await dbAdd(COLS.USERS, { name: 'Natalie Lazaro', email: 'bombero@nexa.com', password: '123', role: 'bombero', rate: 100, birthDate: '1995-05-15', curp: 'LAZA95', bloodType: 'A+', allergies: 'Penicilina' });
     alert("Datos creados. Inicia sesión.");
     setLoading(false);
   };
@@ -174,7 +170,7 @@ function LoginScreen({ onLogin, usersCount, onSeed }) {
     <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
       <div className="bg-white rounded-lg shadow-xl p-8 w-full max-w-md">
         <div className="flex justify-center mb-6"><div className="bg-red-600 p-3 rounded-full"><User className="text-white w-8 h-8" /></div></div>
-        <h1 className="text-2xl font-bold text-center text-slate-800 mb-6">NEXO</h1>
+        <h1 className="text-2xl font-bold text-center text-slate-800 mb-6">NEXAFireOps</h1>
         {usersCount === 0 ? (
           <button onClick={onSeed} className="bg-blue-600 text-white px-4 py-2 rounded w-full flex justify-center gap-2"><Database/> Generar Datos de Prueba</button>
         ) : (
@@ -184,7 +180,7 @@ function LoginScreen({ onLogin, usersCount, onSeed }) {
             <button className="w-full bg-red-600 text-white font-bold py-2 rounded">Iniciar Sesión</button>
           </form>
         )}
-        {usersCount > 0 && <div className="mt-6 text-xs text-center text-slate-400"><p>Admin: admin@nexo.com / 123</p><p>Bombero: bombero@nexo.com / 123</p></div>}
+        {usersCount > 0 && <div className="mt-6 text-xs text-center text-slate-400"><p>Admin: admin@nexa.com / 123</p><p>Bombero: bombero@nexa.com / 123</p></div>}
       </div>
     </div>
   );
